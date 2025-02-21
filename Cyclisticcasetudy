@@ -1,0 +1,232 @@
+---
+title: "Data Cleaning"
+author: "Yesica Gil"
+date: "2025-02-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Packages
+
+Installing required packages for data manipulation:
+
+```{r pack}
+library(tidyverse)
+library(dplyr)
+library(knitr)
+library(data.table)
+library(geosphere)
+```
+
+## Loading datasets
+
+Uploading monthly trip data from Jan. 2023 to Dec. 2024:
+
+```{r datasets}
+Jan2023 <- read.csv("202301-divvy-tripdata.csv")
+Feb2023 <- read.csv("202302-divvy-tripdata.csv")
+Mar2023 <- read.csv("202303-divvy-tripdata.csv")
+Apr2023 <- read.csv("202304-divvy-tripdata.csv")
+May2023 <- read.csv("202305-divvy-tripdata.csv")
+Jun2023 <- read.csv("202306-divvy-tripdata.csv")
+Jul2023 <- read.csv("202307-divvy-tripdata.csv")
+Aug2023 <- read.csv("202308-divvy-tripdata.csv")
+Sep2023 <- read.csv("202309-divvy-tripdata.csv")
+Oct2023 <- read.csv("202310-divvy-tripdata.csv")
+Nov2023 <- read.csv("202311-divvy-tripdata.csv")
+Dec2023 <- read.csv("202312-divvy-tripdata.csv")
+Jan2024 <- read.csv("202401-divvy-tripdata.csv")
+Feb2024 <- read.csv("202402-divvy-tripdata.csv")
+Mar2024 <- read.csv("202403-divvy-tripdata.csv")
+Apr2024 <- read.csv("202404-divvy-tripdata.csv")
+May2024 <- read.csv("202405-divvy-tripdata.csv")
+Jun2024 <- read.csv("202406-divvy-tripdata.csv")
+Jul2024 <- read.csv("202407-divvy-tripdata.csv")
+Aug2024 <- read.csv("202408-divvy-tripdata.csv")
+Sep2024 <- read.csv("202409-divvy-tripdata.csv")
+Oct2024 <- read.csv("202410-divvy-tripdata.csv")
+Nov2024 <-  read.csv("202411-divvy-tripdata.csv")
+Dec2024 <- read.csv("202412-divvy-tripdata.csv")
+```
+
+### Merging datasets
+
+Combining all datasets in one table, the data frame is analyzed to ensure that data types are correct:
+
+```{r type}
+tripdata <- rbind(Jan2023,Feb2023, Mar2023,	Apr2023,	May2023,	Jun2023,	Jul2023,	Aug2023,	Sep2023,	Oct2023,	Nov2023,	Dec2023,	Jan2024,	Feb2024,	Mar2024,	Apr2024,	May2024,	Jun2024,	Jul2024,	Aug2024,	Sep2024,	Oct2024, Nov2024, Dec2024)
+```
+```{r check}
+str(tripdata)
+```
+
+ 
+#### Changing data types from chr to Datetime:
+
+```{r date}
+tripdata$started_at <- as.POSIXct(tripdata$started_at)
+tripdata$ended_at <- as.POSIXct(tripdata$ended_at)
+
+```
+```{r check 2}
+str(tripdata)
+```
+### Calculations
+
+To determine ride length:
+
+```{r calc}
+tripdata <- tripdata %>%
+  mutate(ride_length_sec = ended_at - started_at)
+
+```
+
+To determine distance traveled:
+
+```{r distance}
+tripdata <- tripdata %>% rowwise() %>%  mutate(distance = distHaversine(c(start_lng, start_lat),c(end_lng, end_lat)))
+```
+```{r validate dist}
+tripdata %>%
+  filter(
+    (distance) <=0
+  ) %>%
+  group_by() %>%
+  count()
+
+```
+
+### Checking for inconsistencies
+
+Ensuring that start times are always before end times and unrealistic travel times:
+
+```{r incons2}
+tripdata %>%
+  filter(
+    (ride_length_sec) <= 60
+  ) %>%
+  count()
+```
+Identifying unrealistic distance for trips with less and 2 minutes long:
+
+```{r filter}
+tripdata %>%
+  filter(
+    distance <= 0
+    ) %>%
+  filter(
+    ride_length_sec < 120
+    ) %>%
+  group_by() %>%
+  count()
+  
+```
+
+validating descriptions for type of member and ride.
+
+```{r descrip}
+unique(tripdata$rideable_type)
+unique(tripdata$member_casual)
+```
+
+Checking for duplicates
+
+```{r dupli}
+tripdata[duplicated(tripdata),]
+```
+
+Checking for missing information:
+
+```{r null 1}
+tripdata %>% 
+  filter(
+    is.na(started_at)
+  )
+sum()
+
+```
+```{r null2}
+tripdata %>% 
+  filter(
+    is.na(ended_at)
+  )
+sum()
+
+```
+```{r start info}
+
+tripdata %>% 
+  filter(
+    is.na(start_station_id)
+  )
+sum()
+
+tripdata %>% 
+  filter(
+    is.na(start_station_name)
+  )
+sum()
+```
+```{r end info}
+tripdata %>% 
+  filter(
+    is.na(end_station_id)
+  )
+sum()
+
+tripdata %>% 
+  filter(
+    is.na(end_station_name)
+  )
+sum()
+```
+```{r end info2}
+tripdata %>% 
+  filter(
+    is.na(ride_id)
+  )
+sum()
+
+tripdata %>% 
+  filter(
+    is.na(rideable_type)
+  )
+sum()
+```
+
+### Transforming data
+
+After identifying inconsistencies, the spotted observations are removed:
+
+```{r transf}
+tripdata <- tripdata %>%
+  filter(
+    (ride_length_sec) > 60
+  )
+```
+
+```{r filterlength}
+tripdata <- tripdata %>%
+  filter(
+    distance > 0
+    ) %>%
+  filter(
+    ride_length_sec > 120
+    )
+  
+```
+
+
+```{r summ}
+trip_stats <- tripdata %>%
+  group_by(member_casual) %>% 
+  summarize(avg_ride_length = round(mean(ride_length_sec), 2),
+    min_ride_length = round(min(ride_length_sec), 2),
+    max_ride_length = round (max(ride_length_sec)))
+```
+```{r sta}
+head(trip_stats)
+```
